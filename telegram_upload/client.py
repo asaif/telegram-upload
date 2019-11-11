@@ -82,6 +82,25 @@ class Client(TelegramClient):
                 yield message
             else:
                 break
+    def get_file_size(self, file_path):
+        return os.path.getsize(file_path)
+    
+    def get_limit(self, offset, total_size):
+        return int(((total_size - offset)/MIN_CHUNK_SIZE)+1)
+    
+    def continue_download(self, message, file_path, total_size):
+        offset = self.get_file_size(file_path)
+        if offset != total_size:
+            limit = self.get_limit(offset, total_size)
+            with open(file_path, 'ab') as fd:
+                stream = self.iter_download(file=message, offset=offset, limit=limit)
+                chunk = next(stream)
+                while chunk is not None:
+                    fd.write(chunk)
+                    try:
+                        chunk = next(stream)
+                    except StopIteration as e:
+                        chunk = None
 
     def download_files(self, entity, messages: Iterable[Message], delete_on_success: bool = False):
         messages = reversed(list(messages))
@@ -90,9 +109,12 @@ class Client(TelegramClient):
                                         message.document.attributes), None)
             filename = filename_attr.file_name if filename_attr else 'Unknown'
             file_path = pathlib.Path(filename)
+            total_size = message.document.size
             if not file_path.exists():
-                progress = get_progress_bar('Downloading', filename, message.document.size)
+                progress = get_progress_bar('Downloading', filename, total_size)
                 self.download_media(message, progress_callback=progress)
+            else:
+                self.continue_download(message, file_path, total_size)
             if delete_on_success:
                 self.delete_messages(entity, [message])
             print()
