@@ -1,6 +1,7 @@
 import getpass
 import json
 import re
+import pathlib
 from distutils.version import StrictVersion
 from typing import Iterable
 
@@ -88,8 +89,10 @@ class Client(TelegramClient):
             filename_attr = next(filter(lambda x: isinstance(x, DocumentAttributeFilename),
                                         message.document.attributes), None)
             filename = filename_attr.file_name if filename_attr else 'Unknown'
-            progress = get_progress_bar('Downloading', filename, message.document.size)
-            self.download_media(message, progress_callback=progress)
+            file_path = pathlib.Path(filename)
+            if not file_path.exists():
+                progress = get_progress_bar('Downloading', filename, message.document.size)
+                self.download_media(message, progress_callback=progress)
             if delete_on_success:
                 self.delete_messages(entity, [message])
             print()
